@@ -74,34 +74,35 @@ inferType env term = case term of
         return (ty, PVar x)
 
     -- (Query)
-    IQuery -> S.lookupMax (implicits env)
+    IQuery -> error "not implemented"
 
     -- (-> E)
-    App t t' -> do
-        EFun ty1 ty2 <- inferType env t
-        if checkType env t' ty1 then Just ty2 else Nothing
+    App t1 t2 -> do
+        (tyT1, t1Trans) <- inferType env t1
+        case tyT1 of
+            EFun tyA tyB -> do
+                t2Trans <- checkType env t2 tyA
+                return (tyB, PApp t1Trans t2Trans)
+            _ -> lift Nothing
 
     -- (Let-Ex)
-    ELet x ty t t' ->
-        if checkType env t ty then
-            inferType (envInsertExplicit x ty env) t'
-        else Nothing
+    ELet x ty t1 t2 -> do
+        tTrans <- checkType env t1 ty
+        (tyT2, t2Trans) <- inferType (envInsertExplicit x ty env) t2
+        return $ (tyT2, PLet x tTrans t2Trans)
 
     -- (Let-Im)
-    ILet ty t t' ->
-        if checkType env t ty then
-            inferType (envInsertImplicit undefined ty env) t'
-        else Nothing
+    ILet ty t1 t2 -> do
+        y <- fresh
+        tTrans <- checkType env t1 ty
+        (tyT2, t2Trans) <- inferType (envInsertImplicit y ty env) t2
+        return $ (tyT2, PLet y tTrans t2Trans)
 
-    TrueLit  -> Just TBool
-    FalseLit -> Just TBool
+    TrueLit  -> return (TBool, PTrueLit )
+    FalseLit -> return (TBool, PFalseLit)
 
-    _ -> case inferType env term of
-        -- (?-> E)
-        Just (IFun ty1 ty2) ->
-            if checkType env IQuery ty1 then Just ty2 else Nothing
-
-        _ -> lift Nothing
+    -- (?-> E)
+    _ -> error "not implemented"
 
 checkType :: Env -> Term -> Type -> StateT Name Maybe PTerm
 checkType env term ty = case term of
